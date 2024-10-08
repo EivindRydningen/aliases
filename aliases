@@ -1,0 +1,121 @@
+# Setup fzf
+# ---------
+if [[ ! "$PATH" == */opt/homebrew/opt/fzf/bin* ]]; then
+  PATH="${PATH:+${PATH}:}/opt/homebrew/opt/fzf/bin"
+fi
+
+# Auto-completion
+# ---------------
+[[ $- == *i* ]] && source "/opt/homebrew/opt/fzf/shell/completion.zsh" 2> /dev/null
+
+export PATH="/opt/homebrew/opt/dotnet@6/bin:$PATH"
+
+# Key bindings
+# ------------
+source "/opt/homebrew/opt/fzf/shell/key-bindings.zsh"
+
+alias b='python -m bevaring_cli.main'
+alias tup='cd /Users/eivryd/Code/Arkivverket/bevaring-k8s-config/tilt && (sleep 10 && kubens da-bevaring-tilt) & tilt up --namespace da-bevaring-tilt'
+alias tupm='cd /Users/eivryd/Code/Arkivverket/mottak-k8s-config/tilt && (sleep 10 && kubens da-mottak-tilt) & tilt up --namespace da-mottak-tilt --port=10351'
+alias jwt="current=pwd && cd ~/Code/Arkivverket/bevaring-cli && echo 'y' | poetry run python -m bevaring_cli.main  auth debug-jwt | grep 'ey.*' | sed 's/.* //' | pbcopy && cd $current"
+
+# Git aliases
+alias last='git log -1 HEAD --stat'
+alias ga='git add .'
+alias p='git pull'
+alias gp='git push'
+alias cm='git commit -m'
+alias gs='git status'
+alias gf='git fetch'
+alias gl='git config --global -l'
+alias undo='git reset --soft HEAD^'
+alias sw='git switch'
+alias swc='git switch -c'
+alias su='git push --set-upstream origin'
+
+# Poetry aliases
+alias pos='poetry shell'
+alias poi='poetry install'
+alias pou='poetry update'
+alias pot='poetry run pytest'
+alias lint='poetry run flake8'
+alias poic='clear && rm -fr .venv && rm -f poetry.lock && poetry env use python3.10 && poi'
+
+# Kubernetes aliases
+alias kl='kubectl'
+alias kx='kubectx'
+alias klp='kubectl get pods'
+alias pf='port-forward'
+alias kxk='kind export kubeconfig'
+
+# Docker aliases
+alias dpa='docker ps -a'
+alias dei='docker exec -it'
+alias db='docker build'
+alias dp='docker push'
+
+alias argo='docker run -it --rm -v ~/.kube:/root/.kube --network=host -e KUBECONFIG=~/.kube/config.k-dev -e ARGO_SECURE=false -e ARGO_SERVER=localhost:2746 bitnami/argo-workflow-cli'
+
+alias noark5="cd '/Users/eivryd/Arkade5CLI-2.12.0/'; /Users/eivryd/Arkade5CLI-2.12.0/arkade.sh pack -a input_noark/ -o /Users/eivryd/Documents/testarkiv -p processing/ -m arkade-ip-metadata-noark.json -t Noark5 && open /Users/eivryd/Documents/testarkiv"
+
+function updateAZContext(){
+  case $1 in
+    az-dev)
+      cluster=dev
+      subscr=680a8685-bb3b-4df7-8e3b-a036b8da9d5d
+      ns=da-mottak-dev
+      ;;
+    az-test)
+      cluster=test
+      subscr=1c57e4d8-7009-48e0-a530-5a6c58a0f3c2
+      ns=da-mottak-test
+      ;;
+    az-prod)
+      cluster=prod
+      subscr=6710ccbe-4af8-47cf-8af9-786cf668c273
+      ns=da-mottak-prod
+      ;;
+  esac
+  az aks get-credentials --overwrite-existing --context az-$cluster --resource-group av-plattform-$cluster-rg --name av-plattform-$cluster-aks --subscription $subscr
+  echo $ns
+}
+function updateKarbonContext(){
+  PRIMARYCONFIG=$HOME/.kube/config
+  CONFDIR=tmpconf
+  mkdir -p $CONFDIR
+  export KUBECONFIG=$PRIMARYCONFIG
+  case $1 in
+    k-dev)
+      CLUSTER=KarbonDev01
+      NS=da-bevaring-dev
+      ;;
+    k-test)
+      CLUSTER=KarbonTest
+      NS=da-bevaring-test
+      ;;
+    k-prod)
+      CLUSTER=KarbonProd
+      NS=da-bevaring-prod
+      ;;
+  esac
+  CONF=$CONFDIR/$CLUSTER-config.conf
+  URL="https://prismcentral.arkivverket.no:9440/karbon/v1/k8s/clusters/$CLUSTER/kubeconfig"
+  curl -su "eivryd@arkivverket.no" $URL | jq '.kube_config' -r > $CONF
+  export KUBECONFIG=$CONF:$KUBECONFIG
+  kubectl config view --merge --flatten > $CONFDIR/merged_kubeconfig && mv $CONFDIR/merged_kubeconfig $PRIMARYCONFIG
+  chmod go-r $PRIMARYCONFIG
+  rm $CONFDIR/*.conf
+  rmdir $CONFDIR
+  echo $NS
+}
+function kctx(){
+  case $1 in
+    a*)
+      ns=$(updateAZContext "$1")
+      ;;
+    k*)
+      ns=$(updateKarbonContext "$1")
+    ;;
+  esac
+  kubens $ns
+}
